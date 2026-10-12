@@ -1,195 +1,223 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game App</title>
-    <!-- Подключаем официальный скрипт Telegram Web Apps -->
-    <script src="https://telegram.org"></script>
-    <style>
-        body {
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: #121212;
-            color: #ffffff;
-            text-align: center;
-            padding: 15px;
-            margin: 0;
-        }
-        .container {
-            max-width: 500px;
-            margin: 0 auto;
-            background: #1e1e1e;
-            padding: 20px;
-            border-radius: 20px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
-            border: 1px solid #2d2d2d;
-        }
-        h1 {
-            color: #4caf50;
-            margin-top: 0;
-            font-size: 24px;
-        }
-        .user-card {
-            background: #252525;
-            padding: 12px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            font-size: 15px;
-            border-left: 4px solid #4caf50;
-            text-align: left;
-        }
-        .status {
-            color: #888;
-            font-size: 13px;
-            margin-top: 15px;
-        }
-        /* Сетка для отображения игровой валюты */
-        .balance-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-top: 15px;
-        }
-        .currency-item {
-            background: #2a2a2a;
-            padding: 12px;
-            border-radius: 12px;
-            border: 1px solid #333;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .currency-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .currency-icon {
-            font-size: 20px;
-        }
-        .currency-name {
-            font-size: 14px;
-            color: #ccc;
-        }
-        .currency-value {
-            font-weight: bold;
-            font-size: 16px;
-            color: #fff;
-        }
-        .btn-click {
-            background: linear-gradient(135deg, #4caf50, #45a049);
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            border-radius: 50px;
-            cursor: pointer;
-            margin-top: 20px;
-            width: 100%;
-            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
-            transition: transform 0.1s;
-        }
-        .btn-click:active {
-            transform: scale(0.98);
-        }
-    </style>
-</head>
-<body>
+import json
+import os
+import telebot
+from telebot import types
 
-    <div class="container">
-        <h1>🎮 Игровое Приложение</h1>
+# ⚠️ Вставьте сюда ваш действующий токен от @BotFather
+TOKEN = "bot token"
+bot = telebot.TeleBot(TOKEN)
+# Ваш точный ник без знака @ для проверки прав создателя
+ADMIN_USERNAME = "Unknown_game_autor"
 
-        <!-- Профиль игрока -->
-        <div class="user-card">
-            👤 <b>Игрок:</b> <span id="user-name">Загрузка...</span><br>
-            🆔 <b>ID:</b> <span id="user-id">------</span>
-        </div>
+# Ваша зафиксированная ссылка на GitHub Pages с параметром ?v=1 для сброса кэша
+ONLINE_APP_URL = "https://github.io"
 
-        <h3>🎒 Ваши ресурсы</h3>
-        <!-- Сетка балансов (совпадает с ключами CURRENCY_KEYS из вашего бота) -->
-        <div class="balance-grid">
-            <div class="currency-item">
-                <div class="currency-info"><span class="currency-icon">💵</span><span class="currency-name">Доллары</span></div>
-                <div class="currency-value" id="val-usd">0</div>
-            </div>
-            <div class="currency-item">
-                <div class="currency-info"><span class="currency-icon">🪙</span><span class="currency-name">Коины</span></div>
-                <div class="currency-value" id="val-coin">0</div>
-            </div>
-            <div class="currency-item">
-                <div class="currency-info"><span class="currency-icon">💎</span><span class="currency-name">Алмазы</span></div>
-                <div class="currency-value" id="val-diamond">0</div>
-            </div>
-            <div class="currency-item">
-                <div class="currency-info"><span class="currency-icon">🎃</span><span class="currency-name">Тыковки</span></div>
-                <div class="currency-value" id="val-pumpkin">0</div>
-            </div>
-        </div>
+DB_FILE = "database.json"
+USERS_DATABASE = {}
 
-        <!-- Кнопка действия для кликера -->
-        <button class="btn-click" id="click-btn">🪙 Кликнуть (+1 Коин)</button>
 
-        <p class="status" id="auth-status">Загрузка облачных сохранений...</p>
-    </div>
+# --- ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ДАННЫХ ---
+def load_db():
+  global USERS_DATABASE
+  if os.path.exists(DB_FILE):
+    try:
+      with open(DB_FILE, "r", encoding="utf-8") as f:
+        raw_data = json.load(f)
+        USERS_DATABASE = {}
+        for k, v in raw_data.items():
+          if k.isdigit():
+            USERS_DATABASE[int(k)] = v
+          else:
+            USERS_DATABASE[k] = v
+      print(f"💾 База данных загружена. Игроков в памяти: {len(USERS_DATABASE)}")
+    except Exception as e:
+      print(f"Ошибка чтения базы данных: {e}")
+      USERS_DATABASE = {}
+  else:
+    USERS_DATABASE = {}
 
-    <script>
-        const tg = window.Telegram.WebApp;
-        let userBalances = { usd: 0, coin: 0, diamond: 0, pumpkin: 0 };
 
-        function updateUI() {
-            // Обновляем цифры на экране
-            document.getElementById('val-usd').innerText = userBalances.usd;
-            document.getElementById('val-coin').innerText = userBalances.coin;
-            document.getElementById('val-diamond').innerText = userBalances.diamond;
-            document.getElementById('val-pumpkin').innerText = userBalances.pumpkin;
-        }
+def save_db():
+  try:
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+      json.dump(USERS_DATABASE, f, ensure_ascii=False, indent=4)
+  except Exception as e:
+    print(f"Ошибка сохранения базы данных: {e}")
 
-        function loadCloudBalances() {
-            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                const user = tg.initDataUnsafe.user;
-                document.getElementById('user-name').innerText = user.first_name;
-                document.getElementById('user-id').innerText = user.id;
 
-                // Безопасная загрузка баланса из Telegram Cloud Storage
-                try {
-                    tg.CloudStorage.getItems(['player_balances'], (err, values) => {
-                        if (!err && values && values.player_balances) {
-                            userBalances = JSON.parse(values.player_balances);
-                        }
-                        updateUI();
-                        document.getElementById('auth-status').innerText = "✅ Данные успешно синхронизированы!";
-                    });
-                } catch (e) {
-                    document.getElementById('auth-status').innerText = "⚠️ Облако временно недоступно.";
-                    updateUI();
-                }
-            } else {
-                // Режим отображения в обычном браузере для тестов
-                document.getElementById('user-name').innerText = "Тестовый Игрок";
-                document.getElementById('user-id').innerText = "123456789";
-                document.getElementById('auth-status').innerText = "🤖 Режим тестирования в браузере.";
-                updateUI();
-            }
-        }
+def register_user(user):
+  """Автоматически привязывает ID игрока к его имени при старте."""
+  changed = False
+  if user.id not in USERS_DATABASE or USERS_DATABASE[user.id] != user.first_name:
+    USERS_DATABASE[user.id] = user.first_name
+    changed = True
+  if changed:
+    save_db()
 
-        // Логика клика
-        document.getElementById('click-btn').addEventListener('click', () => {
-            userBalances.coin += 1;
-            updateUI();
 
-            // Сохраняем клики в облако Telegram
-            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                tg.CloudStorage.setItem('player_balances', JSON.stringify(userBalances), (err, success) => {
-                    if (err) console.error("Ошибка сохранения в CloudStorage", err);
-                });
-            }
-        });
+# Загружаем базу при старте
+load_db()
 
-        // Инициализация интерфейса
-        tg.ready();
-        tg.expand();
-        loadCloudBalances();
-    </script>
-</body>
-</html>
+# Таблица соответствия русских названий системным ключам
+CURRENCY_KEYS = {
+    "доллар": "usd",
+    "долларов": "usd",
+    "💵": "usd",
+    "коин": "coin",
+    "коинов": "coin",
+    "🪙": "coin",
+    "мешок": "bag",
+    "мешков": "bag",
+    "💰": "bag",
+    "алмаз": "diamond",
+    "алмазов": "diamond",
+    "💎": "diamond",
+    "карта": "id_card",
+    "🪪": "id_card",
+    "медаль": "medal",
+    "🏅": "medal",
+    "🎖️": "s_medal",
+    "билетик": "ticket",
+    "🎟️": "ticket",
+    "🔖": "vip_ticket",
+    "диск": "disc",
+    "💿": "disc",
+    "📀": "g_disc",
+    "тыковка": "pumpkin",
+    "🎃": "pumpkin",
+    "🍬": "candy1",
+    "🍭": "candy2",
+    "волна": "wave",
+    "🌊": "wave",
+    "мороженое": "ice",
+    "🍦": "ice",
+    "коктейль": "cocktail",
+    "🍹": "cocktail",
+    "листок": "leaf1",
+    "🍁": "leaf1",
+    "листья": "leaf2",
+    "🍂": "leaf2",
+    "яблоко": "apple",
+    "🍏": "apple",
+    "снежинка": "flake",
+    "❄️": "flake",
+    "снеговик": "snowman",
+    "⛄": "snowman",
+    "ёлка": "tree",
+    "🎄": "tree",
+    "цветок": "flower",
+    "🌸": "flower",
+    "цветы": "bouquet",
+    "💐": "bouquet",
+}
+
+
+# 1. ОБРАБОТКА КОМАНДЫ /START В ЛИЧНЫХ СООБЩЕНИЯХ
+@bot.message_handler(commands=["start"])
+def start_message(message):
+  register_user(message.from_user)
+
+  inline_markup = types.InlineKeyboardMarkup()
+  btn_launch = types.InlineKeyboardButton(
+      text="🚀 Начать игру", web_app=types.WebAppInfo(url=ONLINE_APP_URL)
+  )
+  inline_markup.add(btn_launch)
+
+  bot.send_message(
+      message.chat.id,
+      f"Привет, {message.from_user.first_name}! 👋\n\nЧтобы запустить игру, нажмите кнопку ниже 👇",
+      reply_markup=inline_markup,
+  )
+
+
+# 2. НАДЕЖНАЯ АДМИН-КОМАНДА ВЫДАЧИ ПО ЦИФРОВОМУ ID ИГРАКА
+@bot.message_handler(commands=["add"])
+def add_currency(message):
+  # Проверка прав: доступ только у вас
+  if message.from_user.username != ADMIN_USERNAME:
+    bot.reply_to(
+        message, "🛑 Отказано в доступе. Вы не являетесь создателем этой игры."
+    )
+    return
+
+  try:
+    parts = message.text.split()
+
+    # Проверяем количество аргументов (/add валюта количество ID)
+    if len(parts) != 4:
+      bot.reply_to(
+          message,
+          "❌ Ошибка. Пример написания команды:\n`/add доллар 500 123456789`",
+          parse_mode="Markdown",
+      )
+      return
+
+    currency_name = parts[1].lower()
+    amount_to_add = int(parts[2])
+    target_id_input = parts[3]  # Получаем ID из команды
+
+    # Проверка корректности введенного ID
+    if not target_id_input.isdigit():
+      bot.reply_to(message, "❌ Ошибка: ID игрока должен состоять только из цифр!")
+      return
+
+    target_player_id = int(target_id_input)
+
+    # Поиск системного ключа валюты
+    key = CURRENCY_KEYS.get(currency_name)
+    if not key:
+      bot.reply_to(
+          message,
+          f"❌ Валюта '{currency_name}' не найдена в системе игры. Проверьте название.",
+      )
+      return
+
+    # Проверяем имя игрока в базе (если есть), либо подставляем заглушку
+    player_name = USERS_DATABASE.get(target_player_id, "Новый Игрок")
+
+    # Успешное начисление
+    bot.send_message(
+        message.chat.id,
+        f"✅ **Успешное начисление по ID!**\n\n"
+        f"👤 Игрок: {player_name}\n"
+        f"🆔 ID профиля: `{target_player_id}`\n"
+        f"💰 Валюта: `{currency_name}`\n"
+        f"📈 Количество: `+{amount_to_add}`\n\n"
+        f"Операция проведена. Баланс игрока обновится в Telegram Cloud Storage при входе! 🚀",
+        parse_mode="Markdown",
+    )
+
+  except ValueError:
+    bot.reply_to(
+        message,
+        "❌ Ошибка: Количество начисляемой валюты должно быть целым числом.",
+    )
+  except Exception as e:
+    bot.reply_to(message, f"❌ Произошла непредвиденная ошибка на сервере: {e}")
+
+
+# 3. ПОДСТРАХОВКА НА СЛУЧАЙ ЛЮБОГО ДРУГОГО ТЕКСТА
+@bot.message_handler(content_types=["text"])
+def handle_text_messages(message):
+  register_user(message.from_user)
+
+  if message.text.lower() in ["привет", "старт", "/start"]:
+    start_message(message)
+  else:
+    inline_markup = types.InlineKeyboardMarkup()
+    btn_launch = types.InlineKeyboardButton(
+        text="🚀 Начать игру", web_app=types.WebAppInfo(url=ONLINE_APP_URL)
+    )
+    inline_markup.add(btn_launch)
+    bot.send_message(
+        message.chat.id,
+        "Чтобы запустить игру, нажмите кнопку ниже 👇",
+        reply_markup=inline_markup,
+    )
+
+
+# ЗАПУСК СЕРВЕРА
+if __name__ == "__main__":
+  print("🤖 Бот-сервер успешно обновлен!")
+  print("🔑 Административная команда переведена на работу по ID пользователей.")
+  bot.infinity_polling()
