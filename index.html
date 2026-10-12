@@ -8,34 +8,90 @@
     <script src="https://telegram.org"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #1a1a1a;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #121212;
             color: #ffffff;
             text-align: center;
-            padding: 20px;
+            padding: 15px;
             margin: 0;
         }
         .container {
-            max-width: 600px;
+            max-width: 500px;
             margin: 0 auto;
-            background: #2a2a2a;
+            background: #1e1e1e;
             padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border-radius: 20px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            border: 1px solid #2d2d2d;
         }
         h1 {
             color: #4caf50;
+            margin-top: 0;
+            font-size: 24px;
         }
         .user-card {
-            background: #333;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-            font-size: 18px;
+            background: #252525;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 15px;
+            border-left: 4px solid #4caf50;
+            text-align: left;
         }
         .status {
-            color: #aaa;
+            color: #888;
+            font-size: 13px;
+            margin-top: 15px;
+        }
+        /* Сетка для отображения игровой валюты */
+        .balance-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .currency-item {
+            background: #2a2a2a;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .currency-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .currency-icon {
+            font-size: 20px;
+        }
+        .currency-name {
             font-size: 14px;
+            color: #ccc;
+        }
+        .currency-value {
+            font-weight: bold;
+            font-size: 16px;
+            color: #fff;
+        }
+        .btn-click {
+            background: linear-gradient(135deg, #4caf50, #45a049);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 20px;
+            width: 100%;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+            transition: transform 0.1s;
+        }
+        .btn-click:active {
+            transform: scale(0.98);
         }
     </style>
 </head>
@@ -43,58 +99,97 @@
 
     <div class="container">
         <h1>🎮 Игровое Приложение</h1>
-        <p>Система защищенного облачного сохранения балансов активна!</p>
 
-        <!-- Блок отображения профиля игрока -->
+        <!-- Профиль игрока -->
         <div class="user-card">
-            👤 Игрок: <span id="user-name">Загрузка...</span><br>
-            🆔 ID профиля: <span id="user-id">------</span>
+            👤 <b>Игрок:</b> <span id="user-name">Загрузка...</span><br>
+            🆔 <b>ID:</b> <span id="user-id">------</span>
         </div>
 
-        <p class="status" id="auth-status">Инициализация системы...</p>
+        <h3>🎒 Ваши ресурсы</h3>
+        <!-- Сетка балансов (совпадает с ключами CURRENCY_KEYS из вашего бота) -->
+        <div class="balance-grid">
+            <div class="currency-item">
+                <div class="currency-info"><span class="currency-icon">💵</span><span class="currency-name">Доллары</span></div>
+                <div class="currency-value" id="val-usd">0</div>
+            </div>
+            <div class="currency-item">
+                <div class="currency-info"><span class="currency-icon">🪙</span><span class="currency-name">Коины</span></div>
+                <div class="currency-value" id="val-coin">0</div>
+            </div>
+            <div class="currency-item">
+                <div class="currency-info"><span class="currency-icon">💎</span><span class="currency-name">Алмазы</span></div>
+                <div class="currency-value" id="val-diamond">0</div>
+            </div>
+            <div class="currency-item">
+                <div class="currency-info"><span class="currency-icon">🎃</span><span class="currency-name">Тыковки</span></div>
+                <div class="currency-value" id="val-pumpkin">0</div>
+            </div>
+        </div>
+
+        <!-- Кнопка действия для кликера -->
+        <button class="btn-click" id="click-btn">🪙 Кликнуть (+1 Коин)</button>
+
+        <p class="status" id="auth-status">Загрузка облачных сохранений...</p>
     </div>
 
     <script>
-        function initTelegramApp() {
-            try {
-                // Проверяем существование объекта Telegram в window
-                if (typeof window.Telegram === 'undefined' || !window.Telegram.WebApp) {
-                    document.getElementById('user-name').innerText = "Гость (Браузер)";
-                    document.getElementById('user-id').innerText = "Не определен";
-                    document.getElementById('auth-status').innerText = "⚠️ Запущено вне Telegram или скрипт API заблокирован.";
-                    return;
-                }
+        const tg = window.Telegram.WebApp;
+        let userBalances = { usd: 0, coin: 0, diamond: 0, pumpkin: 0 };
 
-                const tg = window.Telegram.WebApp;
-                
-                // Сообщаем Telegram, что интерфейс готов к отрисовке
-                tg.ready();
-                tg.expand();
+        function updateUI() {
+            // Обновляем цифры на экране
+            document.getElementById('val-usd').innerText = userBalances.usd;
+            document.getElementById('val-coin').innerText = userBalances.coin;
+            document.getElementById('val-diamond').innerText = userBalances.diamond;
+            document.getElementById('val-pumpkin').innerText = userBalances.pumpkin;
+        }
 
-                // Проверяем наличие данных пользователя Telegram
-                if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                    const user = tg.initDataUnsafe.user;
-                    const fullName = user.first_name + (user.last_name ? ' ' + user.last_name : '');
-                    
-                    document.getElementById('user-name').innerText = fullName;
-                    document.getElementById('user-id').innerText = user.id;
-                    document.getElementById('auth-status').innerText = "✅ Авторизация успешна через Telegram!";
-                } else {
-                    document.getElementById('user-name').innerText = "Гость (Telegram Web)";
-                    document.getElementById('user-id').innerText = "Не определен";
-                    document.getElementById('auth-status').innerText = "⚠️ API доступно, но данные пользователя не переданы (откройте через бота).";
+        function loadCloudBalances() {
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                const user = tg.initDataUnsafe.user;
+                document.getElementById('user-name').innerText = user.first_name;
+                document.getElementById('user-id').innerText = user.id;
+
+                // Безопасная загрузка баланса из Telegram Cloud Storage
+                try {
+                    tg.CloudStorage.getItems(['player_balances'], (err, values) => {
+                        if (!err && values && values.player_balances) {
+                            userBalances = JSON.parse(values.player_balances);
+                        }
+                        updateUI();
+                        document.getElementById('auth-status').innerText = "✅ Данные успешно синхронизированы!";
+                    });
+                } catch (e) {
+                    document.getElementById('auth-status').innerText = "⚠️ Облако временно недоступно.";
+                    updateUI();
                 }
-            } catch (error) {
-                document.getElementById('auth-status').innerText = "❌ Критическая ошибка: " + error.message;
+            } else {
+                // Режим отображения в обычном браузере для тестов
+                document.getElementById('user-name').innerText = "Тестовый Игрок";
+                document.getElementById('user-id').innerText = "123456789";
+                document.getElementById('auth-status').innerText = "🤖 Режим тестирования в браузере.";
+                updateUI();
             }
         }
 
-        // Запускаем проверку после полной загрузки страницы, чтобы внешние скрипты успели подгрузиться
-        if (document.readyState === 'complete' || document.readyState === 'interactive') {
-            initTelegramApp();
-        } else {
-            document.addEventListener('DOMContentLoaded', initTelegramApp);
-        }
+        // Логика клика
+        document.getElementById('click-btn').addEventListener('click', () => {
+            userBalances.coin += 1;
+            updateUI();
+
+            // Сохраняем клики в облако Telegram
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                tg.CloudStorage.setItem('player_balances', JSON.stringify(userBalances), (err, success) => {
+                    if (err) console.error("Ошибка сохранения в CloudStorage", err);
+                });
+            }
+        });
+
+        // Инициализация интерфейса
+        tg.ready();
+        tg.expand();
+        loadCloudBalances();
     </script>
 </body>
 </html>
