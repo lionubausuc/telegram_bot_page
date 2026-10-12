@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game App</title>
+    <!-- Подключаем официальный скрипт Telegram Web Apps -->
+    <script src="https://telegram.org"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        h1 {
+            color: #4caf50;
+        }
+        .user-card {
+            background: #333;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-size: 18px;
+        }
+        .status {
+            color: #aaa;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🎮 Игровое Приложение</h1>
+        <p>Система защищенного облачного сохранения балансов активна!</p>
+
+        <!-- Блок отображения профиля игрока -->
+        <div class="user-card">
+            👤 Игрок: <span id="user-name">Загрузка...</span><br>
+            🆔 ID профиля: <span id="user-id">------</span>
+        </div>
+
+        <p class="status" id="auth-status">Инициализация системы...</p>
+    </div>
+
+    <script>
+        function initTelegramApp() {
+            try {
+                // Проверяем существование объекта Telegram в window
+                if (typeof window.Telegram === 'undefined' || !window.Telegram.WebApp) {
+                    document.getElementById('user-name').innerText = "Гость (Браузер)";
+                    document.getElementById('user-id').innerText = "Не определен";
+                    document.getElementById('auth-status').innerText = "⚠️ Запущено вне Telegram или скрипт API заблокирован.";
+                    return;
+                }
+
+                const tg = window.Telegram.WebApp;
+                
+                // Сообщаем Telegram, что интерфейс готов к отрисовке
+                tg.ready();
+                tg.expand();
+
+                // Проверяем наличие данных пользователя Telegram
+                if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                    const user = tg.initDataUnsafe.user;
+                    const fullName = user.first_name + (user.last_name ? ' ' + user.last_name : '');
+                    
+                    document.getElementById('user-name').innerText = fullName;
+                    document.getElementById('user-id').innerText = user.id;
+                    document.getElementById('auth-status').innerText = "✅ Авторизация успешна через Telegram!";
+                } else {
+                    document.getElementById('user-name').innerText = "Гость (Telegram Web)";
+                    document.getElementById('user-id').innerText = "Не определен";
+                    document.getElementById('auth-status').innerText = "⚠️ API доступно, но данные пользователя не переданы (откройте через бота).";
+                }
+            } catch (error) {
+                document.getElementById('auth-status').innerText = "❌ Критическая ошибка: " + error.message;
+            }
+        }
+
+        // Запускаем проверку после полной загрузки страницы, чтобы внешние скрипты успели подгрузиться
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            initTelegramApp();
+        } else {
+            document.addEventListener('DOMContentLoaded', initTelegramApp);
+        }
+    </script>
+</body>
+</html>
